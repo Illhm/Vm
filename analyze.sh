@@ -26,6 +26,8 @@ fi
 echo "=== Inspecting rom.img ==="
 if [ -f "rom.img" ]; then
     file rom.img
+    # Try running e2fsck -n to verify if it's an ext file system
+    e2fsck -n rom.img || true
 else
     echo "rom.img not found!"
 fi
@@ -33,6 +35,8 @@ fi
 echo "=== Inspecting rom1.img ==="
 if [ -f "rom1.img" ]; then
     file rom1.img
+    # Try running e2fsck -n to verify if it's an ext file system
+    e2fsck -n rom1.img || true
 else
     echo "rom1.img not found!"
 fi
