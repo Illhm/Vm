@@ -16,27 +16,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Main ROM Zip
-        env:
-          ROM_URL: ${{ github.event.inputs.ROM_DOWNLOAD_URL }}
-        run: |
-          echo "Downloading ROM from $ROM_URL"
-          wget -q --show-progress "$ROM_URL"
-
       - name: Make bash script executable
-
         run: chmod +x patch_rom.sh
 
       - name: Run Patching Script
+        env:
+          ROM_URL: ${{ github.event.inputs.ROM_DOWNLOAD_URL }}
         run: ./patch_rom.sh
-      - name: Intip Isi ROM
-        run: |
-         echo "Daftar isi file zip:"
-         unzip -l downloaded_rom.zip
-          
 
       - name: Upload Patched ROM
         uses: actions/upload-artifact@v4
         with:
-          name: VirtualMaster_Rooted_Final
-          path: VirtualMaster_Rooted_Final.zip
+          name: VirtualMaster_Magisk_v30
+          path: VirtualMaster_Magisk_v30.zip
