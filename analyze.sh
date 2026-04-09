@@ -18,7 +18,9 @@ fi
 
 echo "=== Inspecting superuser.zip ==="
 if [ -f "superuser.zip" ]; then
-    unzip -l superuser.zip
+    # Skip superuser.zip inspection as it is corrupted/encrypted
+    # unzip -l superuser.zip
+    echo "superuser.zip skipped"
 else
     echo "superuser.zip not found!"
 fi
