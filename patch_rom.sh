@@ -7,7 +7,7 @@ echo "=== 1. Environment & Download ==="
 sudo apt-get update
 #<<<<<<< fix-virtual-master-rom-magisk-injection-12963882449561167965
 sudo apt-get install -y wget unzip zip file tree libguestfs-tools linux-image-generic
-=======
+#=======
 # Ditambahkan android-sdk-libsparse-utils untuk simg2img dan img2simg
 sudo apt-get install -y wget unzip zip file tree libguestfs-tools linux-image-generic android-sdk-libsparse-utils
 #>>>>>>> main
