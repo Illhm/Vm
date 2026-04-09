@@ -24,10 +24,16 @@ jobs:
           wget -q --show-progress "$ROM_URL"
 
       - name: Make bash script executable
+
         run: chmod +x patch_rom.sh
 
       - name: Run Patching Script
         run: ./patch_rom.sh
+      - name: Intip Isi ROM
+        run: |
+         echo "Daftar isi file zip:"
+         unzip -l downloaded_rom.zip
+          
 
       - name: Upload Patched ROM
         uses: actions/upload-artifact@v4
