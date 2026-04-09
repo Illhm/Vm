@@ -1,0 +1,36 @@
+name: Patch Virtual Master ROM with Magisk
+
+on:
+  workflow_dispatch:
+    inputs:
+      ROM_DOWNLOAD_URL:
+        description: 'URL of the main ROM zip file to download'
+        required: true
+        type: string
+
+jobs:
+  patch-rom:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Main ROM Zip
+        env:
+          ROM_URL: ${{ github.event.inputs.ROM_DOWNLOAD_URL }}
+        run: |
+          echo "Downloading ROM from $ROM_URL"
+          wget -q --show-progress "$ROM_URL"
+
+      - name: Make bash script executable
+        run: chmod +x patch_rom.sh
+
+      - name: Run Patching Script
+        run: ./patch_rom.sh
+
+      - name: Upload Patched ROM
+        uses: actions/upload-artifact@v4
+        with:
+          name: VirtualMaster_Rooted_Final
+          path: VirtualMaster_Rooted_Final.zip
