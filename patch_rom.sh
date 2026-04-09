@@ -5,7 +5,8 @@ set -e
 
 echo "=== 1. Environment & Download ==="
 sudo apt-get update
-sudo apt-get install -y wget unzip zip file tree libguestfs-tools linux-image-generic
+# Ditambahkan android-sdk-libsparse-utils untuk simg2img dan img2simg
+sudo apt-get install -y wget unzip zip file tree libguestfs-tools linux-image-generic android-sdk-libsparse-utils
 
 export LIBGUESTFS_BACKEND=direct
 sudo chmod 0644 /boot/vmlinuz-* || true
@@ -64,6 +65,22 @@ mkdir -p "$WORK_DIR"
 cp magisk_patch_env/lib/arm64-v8a/libmagisk.so "$WORK_DIR/magisk"
 chmod +x "$WORK_DIR"/*
 
+echo "=== 4.5. Konversi Image (Sparse ke Raw) ==="
+IS_SPARSE=false
+# Cek apakah file adalah Android Sparse Image
+if file "$ROM_IMG_PATH" | grep -qi "sparse"; then
+    echo "Terdeteksi Android Sparse Image! Mengonversi ke Raw ext4..."
+    simg2img "$ROM_IMG_PATH" "${ROM_IMG_PATH}.raw"
+    
+    # Ganti file lama dengan yang raw
+    rm "$ROM_IMG_PATH"
+    mv "${ROM_IMG_PATH}.raw" "$ROM_IMG_PATH"
+    
+    IS_SPARSE=true
+else
+    echo "Bukan Sparse Image. Melanjutkan..."
+fi
+
 echo "=== 5. Eksekusi Patch Magisk (Direct Injection) ==="
 
 cat << 'EOF' > "$WORK_DIR/magisk.rc"
@@ -101,6 +118,17 @@ chmod 0644 ${TARGET_INIT}/magisk.rc
 EOF
 
 echo "Patching rom.img sukses!"
+
+echo "=== 5.5. Kembalikan ke Format Asli ==="
+# Kembalikan ke sparse image jika sebelumnya dikonversi
+if [ "$IS_SPARSE" = true ]; then
+    echo "Mengembalikan Raw Image menjadi Android Sparse Image..."
+    img2simg "$ROM_IMG_PATH" "${ROM_IMG_PATH}.sparse"
+    
+    # Ganti file raw dengan yang sparse
+    rm "$ROM_IMG_PATH"
+    mv "${ROM_IMG_PATH}.sparse" "$ROM_IMG_PATH"
+fi
 
 echo "=== 6. Smart Repack ==="
 
