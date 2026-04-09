@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Hentikan script jika ada error
+# Hentikan script jika ada error (kecuali dimatikan sementara)
 set -e
 
 echo "=== 1. Environment & Download ==="
 sudo apt-get update
-# Menggunakan versi main yang menyertakan android-sdk-libsparse-utils
+# Memastikan semua dependensi terinstal, termasuk android-sdk-libsparse-utils untuk simg2img/img2simg
 sudo apt-get install -y wget unzip zip file tree libguestfs-tools linux-image-generic android-sdk-libsparse-utils
 
 export LIBGUESTFS_BACKEND=direct
@@ -25,7 +25,7 @@ fi
 echo "Memproses file: $MAIN_ZIP"
 
 mkdir -p main_extracted
-# Ditambahkan -o untuk otomatis menimpa file tanpa prompt
+# Menggunakan -o agar tidak memunculkan prompt replace file
 unzip -o -q "$MAIN_ZIP" -d main_extracted/
 
 echo "=== 3. Smart Scan: Mencari rom.img ==="
@@ -40,7 +40,6 @@ if [ -z "$ROM_IMG_PATH" ]; then
     if [ -f "main_extracted/rom.zip" ]; then
         echo "Ditemukan rom.zip, mencoba ekstrak file bersarang..."
         mkdir -p rom_extracted
-        # Ditambahkan -o untuk otomatis menimpa
         unzip -o -q main_extracted/rom.zip -d rom_extracted/
         
         # Cari lagi rom.img di dalam hasil ekstrak rom.zip
@@ -59,13 +58,13 @@ echo "Sukses: rom.img ditemukan di -> $ROM_IMG_PATH"
 echo "=== 4. Setup Headless Patching ==="
 mkdir -p magisk_patch_env
 
-# Ditambahkan -o untuk mencegah prompt "[y]es, [n]o" yang menyebabkan exit code 1
+# Menggunakan -o untuk menghindari prompt konfirmasi overwrite
 unzip -o -q magisk.apk "lib/arm64-v8a/libmagisk*.so" -d magisk_patch_env/
 
 WORK_DIR="$(pwd)/magisk_work"
 mkdir -p "$WORK_DIR"
 
-# Persiapkan script dan binary Magisk (Menggunakan logika branch fix yang lebih robust)
+# Persiapkan script dan binary Magisk
 if [ -f "magisk_patch_env/lib/arm64-v8a/libmagisk64.so" ]; then
     cp magisk_patch_env/lib/arm64-v8a/libmagisk64.so "$WORK_DIR/magisk"
 else
@@ -73,20 +72,41 @@ else
 fi
 chmod +x "$WORK_DIR"/*
 
-echo "=== 4.5. Konversi Image (Sparse ke Raw) ==="
+echo "=== 4.5. Konversi & Inspeksi Image ==="
 IS_SPARSE=false
-# Cek apakah file adalah Android Sparse Image
+
+# 1. Cek Sparse Image
 if file "$ROM_IMG_PATH" | grep -qi "sparse"; then
     echo "Terdeteksi Android Sparse Image! Mengonversi ke Raw ext4..."
     simg2img "$ROM_IMG_PATH" "${ROM_IMG_PATH}.raw"
-    
-    # Ganti file lama dengan yang raw
     rm "$ROM_IMG_PATH"
     mv "${ROM_IMG_PATH}.raw" "$ROM_IMG_PATH"
-    
     IS_SPARSE=true
 else
     echo "Bukan Sparse Image. Melanjutkan..."
+fi
+
+# 2. Debugging: Lihat jenis file sebenarnya
+echo "Detail informasi file rom.img:"
+file "$ROM_IMG_PATH"
+
+# 3. Deteksi Filesystem menggunakan guestfish
+echo "Mendeteksi filesystem di dalam rom.img..."
+FS_TYPE=$(guestfish --ro -a "$ROM_IMG_PATH" run : list-filesystems | head -n 1)
+echo "Hasil deteksi guestfish: $FS_TYPE"
+
+if echo "$FS_TYPE" | grep -qi "erofs"; then
+    echo "ERROR FATAL: rom.img menggunakan format EROFS (Read-Only)!"
+    echo "Script ini menggunakan guestfish yang memerlukan partisi Read-Write (seperti ext4)."
+    exit 1
+elif echo "$FS_TYPE" | grep -qi "unknown"; then
+    echo "Peringatan: Filesystem 'unknown' atau kotor. Mencoba memperbaiki superblock ext4..."
+    # Coba perbaiki filesystem ext4 otomatis (opsi -y untuk yes, -f untuk force)
+    e2fsck -y -f "$ROM_IMG_PATH" || true
+    
+    # Cek sekali lagi setelah repair
+    FS_TYPE_RETRY=$(guestfish --ro -a "$ROM_IMG_PATH" run : list-filesystems | head -n 1)
+    echo "Hasil setelah e2fsck: $FS_TYPE_RETRY"
 fi
 
 echo "=== 5. Eksekusi Patch Magisk (Direct Injection) ==="
@@ -100,8 +120,11 @@ service magiskd /system/bin/magisk --daemon
     oneshot
 EOF
 
-# Dynamically determine the correct Android system bin path
-SYS_BIN=$(guestfish -a "$ROM_IMG_PATH" -m /dev/sda is-dir /system/bin)
+# Matikan exit-on-error sementara agar kita bisa menangkap error spesifik dari guestfish
+set +e
+
+# Cek struktur direktori di dalam image
+SYS_BIN=$(guestfish -a "$ROM_IMG_PATH" -m /dev/sda is-dir /system/bin 2>/dev/null)
 if [ "$SYS_BIN" = "true" ]; then
     TARGET_BIN="/system/bin"
     TARGET_APP="/system/app"
@@ -124,6 +147,17 @@ mkdir-p ${TARGET_INIT}
 upload $WORK_DIR/magisk.rc ${TARGET_INIT}/magisk.rc
 chmod 0644 ${TARGET_INIT}/magisk.rc
 EOF
+
+GUESTFISH_STATUS=$?
+
+# Hidupkan kembali exit-on-error
+set -e
+
+if [ $GUESTFISH_STATUS -ne 0 ]; then
+    echo "Error: Injeksi Magisk menggunakan guestfish gagal!"
+    echo "Kemungkinan penyebab: format partisi (misal EROFS) tidak mendukung mode write, atau strukturnya bertipe Logical/Super Image."
+    exit 1
+fi
 
 echo "Patching rom.img sukses!"
 
