@@ -1,0 +1,26 @@
+name: Analyze Virtual Master ROM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze-rom:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y wget unzip file
+
+      - name: Download ROM
+        run: |
+          echo "Downloading ROM..."
+          wget -q --show-progress "https://cloud.sawitenak.workers.dev/0:down/rom_11_0_0_1011_3220.zip" -O rom.zip
+
+      - name: Make script executable
+        run: chmod +x analyze.sh
+
+      - name: Run Analysis
+        run: ./analyze.sh
