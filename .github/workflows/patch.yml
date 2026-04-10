@@ -32,7 +32,7 @@ jobs:
       - name: Intip Isi ROM
         run: |
          echo "Daftar isi file zip:"
-         unzip -l downloaded_rom.zip
+         unzip -l VirtualMaster_Rooted_Final.zip
           
 
       - name: Upload Patched ROM
